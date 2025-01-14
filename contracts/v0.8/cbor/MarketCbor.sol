@@ -37,6 +37,7 @@ import "./FilecoinCbor.sol";
 library MarketCBOR {
     using CBOR for CBOR.CBORBuffer;
     using CBORDecoder for bytes;
+
     using BigIntCBOR for *;
     using FilecoinCBOR for *;
 
@@ -88,7 +89,10 @@ library MarketCBOR {
 
         (len, byteIdx) = rawResp.readFixedArray(byteIdx);
 
-        if (len > 0) {
+        // Ensure the array length is exactly 2 or 0
+        require(len == 2 || len == 0, "Invalid array length: must be 0 or 2");
+
+        if (len == 2) {
             (ret.data, byteIdx) = rawResp.readBytes(byteIdx);
             (ret.size, byteIdx) = rawResp.readUInt64(byteIdx);
         } else {

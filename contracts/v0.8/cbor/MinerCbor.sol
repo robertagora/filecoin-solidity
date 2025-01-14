@@ -23,6 +23,7 @@ import "solidity-cborutils/contracts/CBOR.sol";
 
 import "./BigIntCbor.sol";
 import "./FilecoinCbor.sol";
+import "./BytesCbor.sol";
 
 import "../types/MinerTypes.sol";
 import "../types/CommonTypes.sol";
@@ -35,6 +36,7 @@ import "../utils/Misc.sol";
 library MinerCBOR {
     using CBOR for CBOR.CBORBuffer;
     using CBORDecoder for bytes;
+    using BytesCBOR for bytes;
     using BigIntCBOR for *;
     using FilecoinCBOR for *;
 
@@ -101,14 +103,14 @@ library MinerCBOR {
 
         (tmp, byteIdx) = rawResp.readBytes(byteIdx);
         if (tmp.length > 0) {
-            ret.active.term.quota = tmp.deserializeBigInt();
+            ret.active.term.quota = tmp.deserializeBytesBigInt();
         } else {
             ret.active.term.quota = CommonTypes.BigInt(new bytes(0), false);
         }
 
         (tmp, byteIdx) = rawResp.readBytes(byteIdx);
         if (tmp.length > 0) {
-            ret.active.term.used_quota = tmp.deserializeBigInt();
+            ret.active.term.used_quota = tmp.deserializeBytesBigInt();
         } else {
             ret.active.term.used_quota = CommonTypes.BigInt(new bytes(0), false);
         }
@@ -123,7 +125,7 @@ library MinerCBOR {
 
             (tmp, byteIdx) = rawResp.readBytes(byteIdx);
             if (tmp.length > 0) {
-                ret.proposed.new_quota = tmp.deserializeBigInt();
+                ret.proposed.new_quota = tmp.deserializeBytesBigInt();
             } else {
                 ret.proposed.new_quota = CommonTypes.BigInt(new bytes(0), false);
             }
@@ -161,7 +163,7 @@ library MinerCBOR {
             (epoch, byteIdx) = rawResp.readChainEpoch(byteIdx);
             (tmp, byteIdx) = rawResp.readBytes(byteIdx);
 
-            amount = tmp.deserializeBigInt();
+            amount = tmp.deserializeBytesBigInt();
             vesting_funds[i] = MinerTypes.VestingFunds(epoch, amount);
         }
     }
@@ -171,20 +173,25 @@ library MinerCBOR {
     /// @return cbor serialized data as bytes
     function serializeChangeWorkerAddressParams(MinerTypes.ChangeWorkerAddressParams memory params) internal pure returns (bytes memory) {
         uint256 capacity = 0;
+        uint64 addressCount = uint64(params.new_control_addresses.length);
+
+        // Safety check to prevent silent truncation
+        require(params.new_control_addresses.length == addressCount, "Address count exceeds uint64 limit");
 
         capacity += Misc.getPrefixSize(2);
         capacity += Misc.getBytesSize(params.new_worker.data);
-        capacity += Misc.getPrefixSize(uint256(params.new_control_addresses.length));
-        for (uint64 i = 0; i < params.new_control_addresses.length; i++) {
+        capacity += Misc.getPrefixSize(addressCount);
+
+        for (uint64 i = 0; i < addressCount; i++) {
             capacity += Misc.getBytesSize(params.new_control_addresses[i].data);
         }
         CBOR.CBORBuffer memory buf = CBOR.create(capacity);
 
         buf.startFixedArray(2);
         buf.writeBytes(params.new_worker.data);
-        buf.startFixedArray(uint64(params.new_control_addresses.length));
+        buf.startFixedArray(addressCount);
 
-        for (uint64 i = 0; i < params.new_control_addresses.length; i++) {
+        for (uint64 i = 0; i < addressCount; i++) {
             buf.writeBytes(params.new_control_addresses[i].data);
         }
 
